@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zombie Shooter Probability Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.9); }
+        }
+        .survivor-glow {
+            animation: pulse-glow 2s infinite;
+        }
+        .danger-line {
+            stroke-dasharray: 8;
+            animation: dash 1.5s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -16; }
+        }
+        .frac {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            margin: 0 3px;
+            font-size: 0.85em;
+            line-height: 1.05;
+        }
+        .frac > span:first-child {
+            border-bottom: 1.5px solid currentColor;
+            padding: 0 3px 1px 3px;
+        }
+        .frac > span:last-child {
+            padding: 1px 3px 0 3px;
+        }
+    </style>
+</head>
+<body class="bg-stone-950 text-stone-100 font-sans min-h-screen flex flex-col select-none">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-stone-900 border-b border-stone-800 px-6 py-3 flex justify-between items-center shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-600 p-2 rounded-lg text-white font-bold text-xl shadow-lg survivor-glow">
+                <i class="fa-solid fa-crosshairs"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide bg-gradient-to-r from-lime-400 to-emerald-400 bg-clip-text text-transparent">Zombie Outbreak: Probability Defense</h1>
+                <p class="text-xs text-stone-400">Defend the Tower! +1 Soldier &amp; +5s for every correct answer</p>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="hidden md:flex items-center space-x-6 bg-stone-950 px-4 py-2 rounded-xl border border-stone-800 text-sm">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-heart text-red-500 animate-pulse"></i>
+                <span class="text-stone-400">Tower HP:</span>
+                <span id="stat-hp" class="font-bold text-red-400">100</span>
+            </div>
+            <div class="h-4 w-[1px] bg-stone-800"></div>
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-coins text-amber-400"></i>
+                <span class="text-stone-400">Ammo/Gold:</span>
+                <span id="stat-gold" class="font-bold text-amber-300">150</span>
+            </div>
+            <div class="h-4 w-[1px] bg-stone-800"></div>
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-biohazard text-lime-400"></i>
+                <span class="text-stone-400">Wave:</span>
+                <span id="stat-wave" class="font-bold text-lime-300">1 / 15</span>
+            </div>
+        </div>
+
+        <div>
+            <button onclick="toggleSound()" id="sound-btn" class="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 py-2 rounded-lg text-sm transition">
+                <i class="fa-solid fa-volume-high mr-1"></i> Sound: <span id="sound-status">On</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
+
+        <!-- Left Section: Zombie Shooter Arena -->
+        <div class="flex-1 bg-stone-900/50 p-4 flex flex-col items-center justify-center relative min-h-[320px] lg:min-h-0 border-b lg:border-b-0 lg:border-r border-stone-800">
+            
+            <div class="flex lg:hidden items-center justify-around w-full bg-stone-950 p-2 rounded-lg border border-stone-800 mb-3 text-xs">
+                <div>HP: <span id="mob-hp" class="font-bold text-red-400">100</span></div>
+                <div>Gold: <span id="mob-gold" class="font-bold text-amber-300">150</span></div>
+                <div>Wave: <span id="mob-wave" class="font-bold text-lime-300">1/15</span></div>
+            </div>
+
+            <!-- Arena SVG / Visualizer -->
+            <div class="relative w-full max-w-xl h-64 lg:h-80 bg-stone-950 rounded-2xl border border-stone-800 shadow-inner overflow-hidden flex items-center justify-center">
+                <svg class="absolute inset-0 w-full h-full" viewBox="0 0 600 350" preserveAspectRatio="none">
+                    <defs>
+                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                            <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+
+                    <!-- Zombie Wasteland Trail -->
+                    <path d="M 40 280 L 180 280 L 180 120 L 420 120 L 420 240 L 560 240" fill="none" stroke="rgba(68, 64, 60, 0.5)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M 40 280 L 180 280 L 180 120 L 420 120 L 420 240 L 560 240" fill="none" stroke="rgba(28, 25, 23, 0.9)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path class="danger-line" d="M 40 280 L 180 280 L 180 120 L 420 120 L 420 240 L 560 240" fill="none" stroke="rgba(132, 204, 22, 0.35)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+                    <!-- Zombie Spawn Graveyard -->
+                    <g transform="translate(40, 280)">
+                        <circle r="18" fill="#1c1917" stroke="#65a30d" stroke-width="1.5" stroke-dasharray="3" />
+                        <text x="0" y="5" font-size="14" text-anchor="middle">☣️</text>
+                        <text x="0" y="28" font-size="9" fill="#a3e635" text-anchor="middle" font-weight="bold">Horde Spawn</text>
+                    </g>
+
+                    <!-- Single Fortified Defense Tower at End of Path -->
+                    <g id="defense-tower" transform="translate(540, 220)">
+                        <rect x="-28" y="-36" width="56" height="72" rx="8" fill="#292524" stroke="#78716c" stroke-width="2.5" class="survivor-glow" />
+                        <rect x="-32" y="-42" width="64" height="14" rx="4" fill="#44403c" stroke="#a8a29e" stroke-width="1.5" />
+                        <rect x="-28" y="-48" width="10" height="8" rx="2" fill="#57534e" />
+                        <rect x="-5" y="-48" width="10" height="8" rx="2" fill="#57534e" />
+                        <rect x="18" y="-48" width="10" height="8" rx="2" fill="#57534e" />
+                        <rect x="-10" y="14" width="20" height="22" rx="10" fill="#1c1917" stroke="#57534e" stroke-width="1.5" />
+                        <text x="0" y="52" font-size="10" fill="#a7f3d0" text-anchor="middle" font-weight="bold">Defense Tower</text>
+                        <g id="tower-soldiers"></g>
+                    </g>
+
+                    <!-- Live Moving Zombies & Bullet Tracers -->
+                    <g id="game-entities"></g>
+                </svg>
+
+                <!-- Timer & Soldier Count HUD -->
+                <div class="absolute top-3 left-3 right-3 flex justify-between items-center pointer-events-none">
+                    <div class="bg-stone-900/90 border border-stone-700 px-3 py-1.5 rounded-lg text-xs font-medium text-stone-300 shadow-md backdrop-blur-sm flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-lime-500 animate-ping"></span>
+                        <span id="status-text">Zombies approaching! Solve fast to recruit soldiers!</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="bg-stone-900/95 border border-emerald-500/40 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-300 shadow-md flex items-center space-x-1.5">
+                            <span>🪖 Soldiers:</span>
+                            <span id="soldier-count-hud" class="text-sm text-white">2</span>
+                        </div>
+                        <div id="timer-badge" class="bg-stone-900/95 border border-amber-500/50 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-300 shadow-md flex items-center space-x-1.5">
+                            <i class="fa-solid fa-stopwatch text-amber-400"></i>
+                            <span id="timer-hud" class="text-sm text-white font-mono">60.0s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weapon Upgrades -->
+            <div class="w-full max-w-xl mt-3 grid grid-cols-3 gap-2">
+                <div class="bg-stone-950 border border-stone-800 p-2 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-stone-400">Bullet Power</div>
+                        <div id="shop-damage" class="text-xs font-bold text-emerald-400">25 DMG</div>
+                    </div>
+                    <button onclick="upgradeItem('damage')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-2 py-1 rounded-lg font-medium">Up (50G)</button>
+                </div>
+                <div class="bg-stone-950 border border-stone-800 p-2 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-stone-400">Fire Rate</div>
+                        <div id="shop-speed" class="text-xs font-bold text-lime-400">1.0s</div>
+                    </div>
+                    <button onclick="upgradeItem('speed')" class="bg-lime-600 hover:bg-lime-500 text-white text-[10px] px-2 py-1 rounded-lg font-medium">Up (60G)</button>
+                </div>
+                <div class="bg-stone-950 border border-stone-800 p-2 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-stone-400">Scope Range</div>
+                        <div id="shop-range" class="text-xs font-bold text-amber-400">120m</div>
+                    </div>
+                    <button onclick="upgradeItem('range')" class="bg-amber-600 hover:bg-amber-500 text-white text-[10px] px-2 py-1 rounded-lg font-medium">Up (40G)</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Section: Probability Question Terminal -->
+        <div class="w-full lg:w-[450px] bg-stone-900 p-4 flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-stone-800 shadow-2xl">
+            
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <span id="q-category-badge" class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                        Easy: Contingency Table
+                    </span>
+                    <span class="text-xs font-bold text-stone-400">Wave <span id="current-q-num">1</span> / 15</span>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="w-full bg-stone-950 h-2 rounded-full overflow-hidden mb-3 border border-stone-800">
+                    <div id="quiz-progress-bar" class="bg-gradient-to-r from-lime-500 to-emerald-500 h-full w-[6.6%] transition-all duration-300"></div>
+                </div>
+
+                <!-- Question Prompt -->
+                <div class="bg-stone-950 border border-stone-800 p-3.5 rounded-xl mb-3 shadow-inner">
+                    <h3 id="question-text" class="text-xs sm:text-sm font-semibold text-stone-200 leading-relaxed">
+                        Loading question...
+                    </h3>
+                </div>
+
+                <!-- Visual Aid (Table / Venn) -->
+                <div id="visual-aid-container" class="mb-3 bg-stone-950 border border-stone-800 rounded-xl p-2.5 flex flex-col items-center justify-center min-h-[120px]"></div>
+
+                <!-- Options -->
+                <div id="options-container" class="space-y-2"></div>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="mt-3 pt-2 border-t border-stone-800">
+                <div id="feedback-box" class="hidden p-2.5 rounded-xl text-xs font-medium mb-2"></div>
+                <div class="flex space-x-2">
+                    <button onclick="useHint()" id="hint-btn" class="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 py-2 px-3 rounded-xl text-xs font-semibold transition border border-stone-700 flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                        <span>Hint (-20G)</span>
+                    </button>
+                    <button onclick="submitAnswer()" id="submit-btn" disabled class="flex-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 px-5 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-2">
+                        <span>Open Fire!</span>
+                        <i class="fa-solid fa-gun"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal -->
+    <div id="game-modal" class="fixed inset-0 bg-stone-950/85 backdrop-blur-md hidden items-center justify-center z-50 p-4">
+        <div class="bg-stone-900 border border-stone-800 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl">
+            <div id="modal-icon" class="text-5xl mb-3 text-emerald-500"><i class="fa-solid fa-medal"></i></div>
+            <h2 id="modal-title" class="text-2xl font-bold text-white mb-2">Tower Defended!</h2>
+            <p id="modal-desc" class="text-stone-400 text-sm mb-6">Your squad survived all 15 zombie waves!</p>
+            <div id="modal-stats" class="bg-stone-950 p-4 rounded-xl border border-stone-800 mb-6 text-sm space-y-2 text-left"></div>
+            <button onclick="restartGame()" class="w-full bg-gradient-to-r from-lime-600 to-emerald-600 hover:from-lime-500 hover:to-emerald-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript Game Engine & Questions -->
+    <script>
+        function f(num, den) {
+            return `<span class="frac"><span>${num}</span><span>${den}</span></span>`;
+        }
+
+        let soundEnabled = true;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            if (type === 'correct') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(90, now + 0.25);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'shoot') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(140, now + 0.08);
+                gainNode.gain.setValueAtTime(0.08, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.start(now); osc.stop(now + 0.08);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-status').innerText = soundEnabled ? 'On' : 'Off';
+        }
+
+        let gameState = {
+            hp: 100, gold: 150, wave: 1, towerDmg: 25, towerSpeed: 1.0, towerRange: 120,
+            currentQuestionIdx: 0, selectedOption: null, answered: false, score: 0,
+            soldiers: 2, timeRemaining: 120.0, maxApproachTime: 120.0, isGameOver: false, isPausedForFeedback: false
+        };
+
+        let activeBullets = [];
+        let lastFrameTime = null;
+        let lastShotTime = 0;
+        let randomizedQuestions = [];
+
+        const pathWaypoints = [
+            { x: 40, y: 280 },
+            { x: 180, y: 280 },
+            { x: 180, y: 120 },
+            { x: 420, y: 120 },
+            { x: 420, y: 240 },
+            { x: 515, y: 240 }
+        ];
+
+        function getPositionOnPath(progress) {
+            const p = Math.max(0, Math.min(1, progress));
+            const totalSegments = pathWaypoints.length - 1;
+            const scaled = p * totalSegments;
+            const idx = Math.min(Math.floor(scaled), totalSegments - 1);
+            const segT = scaled - idx;
+            const start = pathWaypoints[idx];
+            const end = pathWaypoints[idx + 1];
+            return {
+                x: start.x + (end.x - start.x) * segT,
+                y: start.y + (end.y - start.y) * segT
+            };
+        }
+
+        function renderSoldiersOnTower() {
+            const container = document.getElementById('tower-soldiers');
+            const hud = document.getElementById('soldier-count-hud');
+            if (!container) return;
+            if (hud) hud.innerText = gameState.soldiers;
+
+            container.innerHTML = '';
+            const count = gameState.soldiers;
+            const maxVisible = Math.min(count, 10);
+            const spacing = maxVisible > 1 ? Math.min(12, 48 / (maxVisible - 1)) : 0;
+            const startX = -((maxVisible - 1) * spacing) / 2;
+
+            for (let i = 0; i < maxVisible; i++) {
+                const sx = startX + i * spacing;
+                const sy = -52 - (i % 2) * 3;
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("transform", `translate(${sx}, ${sy})`);
+                g.innerHTML = `
+                    <circle r="4.5" fill="#10b981" stroke="#064e3b" stroke-width="1"/>
+                    <rect x="-3" y="4" width="6" height="6" rx="1.5" fill="#059669"/>
+                    <line x1="-2" y1="6" x2="-9" y2="5" stroke="#d6d3d1" stroke-width="1.5" stroke-linecap="round"/>
+                `;
+                container.appendChild(g);
+            }
+        }
+
+        function startDefenseLoop() {
+            lastFrameTime = performance.now();
+            function loop(now) {
+                const dt = (now - lastFrameTime) / 1000;
+                lastFrameTime = now;
+
+                if (!gameState.isGameOver && gameState.hp > 0 && !gameState.isPausedForFeedback) {
+                    gameState.timeRemaining = Math.max(0, gameState.timeRemaining - dt);
+                    const timerHud = document.getElementById('timer-hud');
+                    const timerBadge = document.getElementById('timer-badge');
+                    if (timerHud) {
+                        timerHud.innerText = `${gameState.timeRemaining.toFixed(1)}s`;
+                        if (gameState.timeRemaining <= 10) {
+                            timerBadge.className = "bg-red-950/95 border border-red-500 px-3 py-1.5 rounded-lg text-xs font-bold text-red-300 shadow-md flex items-center space-x-1.5 animate-pulse";
+                        } else {
+                            timerBadge.className = "bg-stone-900/95 border border-amber-500/50 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-300 shadow-md flex items-center space-x-1.5";
+                        }
+                    }
+
+                    const approachProgress = 1 - (gameState.timeRemaining / gameState.maxApproachTime);
+                    const leadPos = getPositionOnPath(approachProgress);
+
+                    const fireInterval = Math.max(180, (1100 * gameState.towerSpeed) / Math.max(1, gameState.soldiers * 0.65));
+                    if (now - lastShotTime > fireInterval) {
+                        lastShotTime = now;
+                        const shooterIdx = Math.floor(Math.random() * Math.min(gameState.soldiers, 8));
+                        const offsetX = (shooterIdx - 2) * 5;
+                        activeBullets.push({
+                            x1: 540 + offsetX,
+                            y1: 168,
+                            x2: leadPos.x + (Math.random() - 0.5) * 14,
+                            y2: leadPos.y + (Math.random() - 0.5) * 14,
+                            life: 0.14
+                        });
+                        if (Math.random() < 0.25) playSound('shoot');
+                    }
+
+                    const entitiesG = document.getElementById('game-entities');
+                    if (entitiesG) {
+                        let svgContent = '';
+                        const offsets = [
+                            { dp: 0, dx: 0, dy: 0, icon: '🧟' },
+                            { dp: -0.025, dx: -6, dy: 6, icon: '🧟‍♂️' },
+                            { dp: -0.03, dx: 6, dy: -6, icon: '🧟‍♀️' },
+                            { dp: -0.055, dx: -4, dy: -5, icon: '🧟' },
+                            { dp: -0.06, dx: 5, dy: 5, icon: '🧟‍♂️' }
+                        ];
+                        offsets.forEach(z => {
+                            const zp = Math.max(0, approachProgress + z.dp);
+                            const pos = getPositionOnPath(zp);
+                            svgContent += `
+                                <g transform="translate(${pos.x + z.dx}, ${pos.y + z.dy})">
+                                    <circle r="10" fill="#3f6212" stroke="#a3e635" stroke-width="1.5" opacity="0.9"/>
+                                    <text x="0" y="4" font-size="11" text-anchor="middle">${z.icon}</text>
+                                </g>
+                            `;
+                        });
+
+                        activeBullets = activeBullets.filter(b => b.life > 0);
+                        activeBullets.forEach(b => {
+                            b.life -= dt;
+                            svgContent += `
+                                <line x1="${b.x1}" y1="${b.y1}" x2="${b.x2}" y2="${b.y2}" stroke="#fde047" stroke-width="2" stroke-dasharray="4" opacity="${Math.max(0, b.life * 6)}"/>
+                                <circle cx="${b.x2}" cy="${b.y2}" r="4" fill="#facc15" opacity="${Math.max(0, b.life * 6)}"/>
+                            `;
+                        });
+
+                        entitiesG.innerHTML = svgContent;
+                    }
+
+                    if (gameState.timeRemaining <= 0) {
+                        gameState.hp = 0;
+                        updateStats();
+                        playSound('wrong');
+                        endGame(false, "Time ran out! The zombie horde reached the Defense Tower!");
+                        return;
+                    }
+                }
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        }
+
+        function generateRandomizedQuestions() {
+            // Randomize contingency table values
+            const r1c1 = Math.floor(Math.random() * 25) + 25; // Runner & Armored
+            const r1c2 = Math.floor(Math.random() * 35) + 30; // Runner & Unarmored
+            const r2c1 = Math.floor(Math.random() * 20) + 15; // Walker & Armored
+            const r2c2 = Math.floor(Math.random() * 40) + 35; // Walker & Unarmored
+
+            const totR1 = r1c1 + r1c2;
+            const totR2 = r2c1 + r2c2;
+            const totC1 = r1c1 + r2c1;
+            const totC2 = r1c2 + r2c2;
+            const grandTot = totR1 + totR2;
+
+            // Randomize vary styles for Q1-Q3 (Intersection, Union, Complement variations)
+            const q1Types = [
+                { label: "P(R ∩ A)", num: r1c1, desc: "both a Runner (R) and Armored (A)" },
+                { label: "P(A ∩ R)", num: r1c1, desc: "both Armored (A) and a Runner (R)" },
+                { label: "P(R' ∩ A)", num: r2c1, desc: "both a Walker (R') and Armored (A)" },
+                { label: "P(R ∩ A')", num: r1c2, desc: "both a Runner (R) and Unarmored (A')" }
+            ];
+            const chosenQ1 = q1Types[Math.floor(Math.random() * q1Types.length)];
+
+            const q2Types = [
+                { label: "P(R ∪ A)", num: totR1 + totC1 - r1c1, desc: "either a Runner (R) OR Armored (A)" },
+                { label: "P(A ∪ R)", num: totR1 + totC1 - r1c1, desc: "either Armored (A) OR a Runner (R)" },
+                { label: "P(R' ∪ A)", num: totR2 + totC1 - r2c1, desc: "either a Walker (R') OR Armored (A)" },
+                { label: "P(R ∪ A')", num: totR1 + totC2 - r1c2, desc: "either a Runner (R) OR Unarmored (A')" }
+            ];
+            const chosenQ2 = q2Types[Math.floor(Math.random() * q2Types.length)];
+
+            const q3Types = [
+                { label: "P(R')", num: totR2, desc: "NOT a Runner (P(R'))" },
+                { label: "P(A')", num: totC2, desc: "NOT Armored (P(A'))" },
+                { label: "P(R)", num: totR1, desc: "a Runner (P(R))" },
+                { label: "P(A)", num: totC1, desc: "Armored (P(A))" }
+            ];
+            const chosenQ3 = q3Types[Math.floor(Math.random() * q3Types.length)];
+
+            // Venn variations
+            const vTotal = 100;
+            const vA = Math.floor(Math.random() * 20) + 35;
+            const vB = Math.floor(Math.random() * 20) + 40;
+            const vInter = Math.min(vA, vB, Math.floor(Math.random() * 15) + 15);
+            const neitherCount = vTotal - (vA + vB - vInter);
+
+            const vennTypes = [
+                { label: "P(C' ∩ P')", num: neitherCount, desc: `NEITHER mutation (P(C' ∩ P'))` },
+                { label: "P(P' ∩ C')", num: neitherCount, desc: `NEITHER mutation (P(P' ∩ C'))` },
+                { label: "P(C ∪ P)", num: vA + vB - vInter, desc: `either Spores or Plating (P(C ∪ P))` }
+            ];
+            const chosenVenn = vennTypes[Math.floor(Math.random() * vennTypes.length)];
+
+            // Randomize Calculation Qs
+            const pE_num = Math.floor(Math.random() * 4) + 3;
+            const pE_den = 20;
+            const pH_num = Math.floor(Math.random() * 5) + 6;
+            const pInter_num = Math.floor(Math.random() * 2) + 2;
+            const union_num = pE_num + pH_num - pInter_num;
+
+            randomizedQuestions = [
+                // EASY (1-5)
+                {
+                    level: "Easy", subcat: "Contingency Table - Intersection",
+                    question: `Outpost scouts scanned ${grandTot} incoming zombies. What is the probability that a randomly targeted zombie is ${chosenQ1.desc} (${chosenQ1.label})?`,
+                    type: "table",
+                    data: { headers: ["", "Armored (A)", "Unarmored (A')", "Total"], rows: [["Runner (R)", `${r1c1}`, `${r1c2}`, `${totR1}`], ["Walker (R')", `${r2c1}`, `${r2c2}`, `${totR2}`], ["Total", `${totC1}`, `${totC2}`, `${grandTot}`]] },
+                    options: [
+                        { text: `${f(chosenQ1.num, grandTot)}`, correct: true, rationale: `The relevant cell frequency is ${chosenQ1.num} out of ${grandTot}. Probability = ${f(chosenQ1.num, grandTot)}.` },
+                        { text: `${f(grandTot - chosenQ1.num, grandTot)}`, correct: false, rationale: "Complement error or incorrect cell selection." },
+                        { text: `${f(totR1, grandTot)}`, correct: false, rationale: "Confused with marginal row total." },
+                        { text: `${f(totC1, grandTot)}`, correct: false, rationale: "Confused with marginal column total." }
+                    ],
+                    hint: `Locate the specific row and column intersection or complement requested, then divide by grand total (${grandTot}).`
+                },
+                {
+                    level: "Easy", subcat: "Contingency Table - Union",
+                    question: `Using the same zombie horde scan table (${grandTot} total), what is the probability that a randomly targeted zombie is ${chosenQ2.desc} (${chosenQ2.label})?`,
+                    type: "table",
+                    data: { headers: ["", "Armored (A)", "Unarmored (A')", "Total"], rows: [["Runner (R)", `${r1c1}`, `${r1c2}`, `${totR1}`], ["Walker (R')", `${r2c1}`, `${r2c2}`, `${totR2}`], ["Total", `${totC1}`, `${totC2}`, `${grandTot}`]] },
+                    options: [
+                        { text: `${f(chosenQ2.num, grandTot)}`, correct: true, rationale: `Using the General Addition Rule for union: sum individual probabilities and subtract intersection = ${f(chosenQ2.num, grandTot)}.` },
+                        { text: `${f(totR1 + totC1, grandTot)}`, correct: false, rationale: "Double-counting intersection overlap." },
+                        { text: `${f(r1c1, grandTot)}`, correct: false, rationale: "This is the intersection P(R ∩ A)." },
+                        { text: `${f(grandTot - chosenQ2.num, grandTot)}`, correct: false, rationale: "This is the complement of the union." }
+                    ],
+                    hint: "Apply General Addition Rule: P(A) + P(B) - P(A ∩ B)."
+                },
+                {
+                    level: "Easy", subcat: "Contingency Table - Complementary",
+                    question: `Referring to the same zombie scan table (${grandTot} total), what is the probability that a randomly targeted zombie is ${chosenQ3.desc}?`,
+                    type: "table",
+                    data: { headers: ["", "Armored (A)", "Unarmored (A')", "Total"], rows: [["Runner (R)", `${r1c1}`, `${r1c2}`, `${totR1}`], ["Walker (R')", `${r2c1}`, `${r2c2}`, `${totR2}`], ["Total", `${totC1}`, `${totC2}`, `${grandTot}`]] },
+                    options: [
+                        { text: `${f(chosenQ3.num, grandTot)}`, correct: true, rationale: `Frequency for this event is ${chosenQ3.num} out of ${grandTot} = ${f(chosenQ3.num, grandTot)}.` },
+                        { text: `${f(grandTot - chosenQ3.num, grandTot)}`, correct: false, rationale: "Inverted or complement mismatch." },
+                        { text: `${f(totR1, grandTot)}`, correct: false, rationale: "Incorrect subset ratio." },
+                        { text: `${f(totC2, grandTot)}`, correct: false, rationale: "Incorrect marginal row/column ratio." }
+                    ],
+                    hint: "Complementary probability or row/column total divided by grand total."
+                },
+                {
+                    level: "Easy", subcat: "Venn Diagram - Union & Intersection",
+                    question: `Thermal drones scanned ${vTotal} zombies in Sector 4: ${vA} emit Toxic Spores (C) and ${vB} have Bone Plating (P). If ${vInter} zombies have BOTH, what is the probability that a zombie has ${chosenVenn.desc}?`,
+                    type: "venn",
+                    data: { setA: vA, setB: vB, inter: vInter, total: vTotal, nameA: "Spores (C)", nameB: "Plating (P)" },
+                    options: [
+                        { text: `${f(chosenVenn.num, vTotal)}`, correct: true, rationale: `Correct calculation yields ${chosenVenn.num} out of ${vTotal} = ${f(chosenVenn.num, vTotal)}.` },
+                        { text: `${f(vTotal - chosenVenn.num, vTotal)}`, correct: false, rationale: "Confused with complement." },
+                        { text: `${f(vA, vTotal)}`, correct: false, rationale: "Only considered set A." },
+                        { text: `${f(vInter, vTotal)}`, correct: false, rationale: "Only considered intersection." }
+                    ],
+                    hint: "Use inclusion-exclusion for union, then subtract from total for neither."
+                },
+                {
+                    level: "Easy", subcat: "Venn Diagram - Conditional / Subset",
+                    question: `In a quarantine zone of 150 zombies, 60 are Alpha Mutants (F) and 90 are Night Stalkers (S). If all 60 Alpha Mutants are also Night Stalkers (F ⊂ S), what is P(S | F)?`,
+                    type: "venn",
+                    data: { setA: 60, setB: 90, inter: 60, total: 150, nameA: "Alpha (F)", nameB: "Stalker (S)" },
+                    options: [
+                        { text: `1 (or ${f(60, 60)})`, correct: true, rationale: `Since F is a complete subset of S, P(S | F) = ${f(60, 60)} = 1.` },
+                        { text: `${f(3, 5)} (or 0.60)`, correct: false, rationale: "This is P(F)." },
+                        { text: `${f(2, 5)} (or 0.40)`, correct: false, rationale: `Ratio of Alpha Mutants to total (${f(60, 150)}).` },
+                        { text: `0 (or ${f(0, 60)})`, correct: false, rationale: "Implies mutually exclusive." }
+                    ],
+                    hint: "If F is entirely inside S, what happens when F is given?"
+                },
+
+                // MEDIUM (6-13)
+                {
+                    level: "Medium", subcat: "Event Classification - Mutual Exclusivity",
+                    question: "Medium Q1: A sniper fires a headshot at an approaching zombie. Consider the events 'Zombie is eliminated on impact' and 'Zombie survives impact'. How would you describe the relationship between these two events?",
+                    type: "scenario",
+                    options: [
+                        { text: "They cannot happen at the same time and cover all possibilities (mutually exclusive and complementary)", correct: true, rationale: "The zombie cannot both be eliminated and survive simultaneously, and together they cover all possible outcomes of the shot." },
+                        { text: "The outcome of the first event completely affects the probability of the second (independent events)", correct: false, rationale: "Elimination and survival are strongly dependent on each other." },
+                        { text: "They can both happen simultaneously", correct: false, rationale: "Simultaneous survival and elimination are impossible." },
+                        { text: "They are completely unrelated and independent", correct: false, rationale: "They share a direct complementary relationship." }
+                    ],
+                    hint: "Can both happen at once? Do they cover all possible outcomes?"
+                },
+                {
+                    level: "Medium", subcat: "Event Classification - Independence",
+                    question: "Medium Q2: Two snipers on separate rooftops fire at different approaching zombies. Let Event A be 'Sniper 1 hits' and Event B be 'Sniper 2 hits'. What is the relationship between these two events?",
+                    type: "scenario",
+                    options: [
+                        { text: "The occurrence of one does not affect the probability of the other (independent events)", correct: true, rationale: "Separate snipers and separate targets operate independently without influencing one another." },
+                        { text: "The success of one prevents the other from succeeding (mutually exclusive)", correct: false, rationale: "Sniper 1 hitting does not prevent Sniper 2 from hitting." },
+                        { text: "One is the exact opposite of the other (complementary)", correct: false, rationale: "Neither is the negation of the other." },
+                        { text: "They always occur together (dependent)", correct: false, rationale: "They operate on separate targets independently." }
+                    ],
+                    hint: "Does Sniper 1's shot influence Sniper 2?"
+                },
+                {
+                    level: "Medium", subcat: "Event Classification - Mutual Exclusivity",
+                    question: "Medium Q3: A survivor's shotgun can only be loaded with one shell type at a time: Buckshot or Incendiary. Consider Event L ('Buckshot loaded') and Event P ('Incendiary loaded'). What is the relationship between L and P?",
+                    type: "scenario",
+                    options: [
+                        { text: "They cannot both occur at the same time (mutually exclusive)", correct: true, rationale: "The chamber cannot hold both shell types simultaneously, so they cannot occur together." },
+                        { text: "Loading Buckshot guarantees Incendiary is loaded (independent)", correct: false, rationale: "Loading one prevents the other." },
+                        { text: "They always occur together", correct: false, rationale: "They exclude each other." },
+                        { text: "They have no connection", correct: false, rationale: "They share the same weapon chamber." }
+                    ],
+                    hint: "Can both shells be chambered at once?"
+                },
+                {
+                    level: "Medium", subcat: "Probability Computation - General Addition Rule",
+                    question: `Medium Q4: A zombie crawler has P(E) = ${f(pE_num, pE_den)} of carrying Acid Bile, P(H) = ${f(pH_num, pE_den)} of Thick Hide, and P(E ∩ H) = ${f(pInter_num, pE_den)}. What is P(E ∪ H)?`,
+                    type: "calculation",
+                    options: [
+                        { text: `${f(union_num, pE_den)} (or ${(union_num/pE_den).toFixed(2)})`, correct: true, rationale: `General Addition Rule: P(E) + P(H) - P(E ∩ H) = ${f(pE_num, pE_den)} + ${f(pH_num, pE_den)} - ${f(pInter_num, pE_den)} = ${f(union_num, pE_den)}.` },
+                        { text: `${f(pE_num + pH_num, pE_den)}`, correct: false, rationale: "Double-counting error." },
+                        { text: `${f(pH_num, pE_den)}`, correct: false, rationale: "Incorrect assumption." },
+                        { text: `${f(pInter_num, pE_den)}`, correct: false, rationale: "Incorrect subtraction." }
+                    ],
+                    hint: "Apply P(A ∪ B) = P(A) + P(B) - P(A ∩ B)."
+                },
+                {
+                    level: "Medium", subcat: "Probability Computation - Independent Events",
+                    question: `Medium Q5: Two independent automated sentry guns each have ${f(4, 5)} (0.80) accuracy. What is the probability that BOTH sentry guns hit their targets?`,
+                    type: "calculation",
+                    options: [
+                        { text: `${f(16, 25)} (or 0.64)`, correct: true, rationale: `Independent joint probability: ${f(4, 5)} × ${f(4, 5)} = ${f(16, 25)} = 0.64.` },
+                        { text: `${f(8, 5)} (or 1.60)`, correct: false, rationale: "Exceeds 1." },
+                        { text: `${f(4, 5)} (or 0.80)`, correct: false, rationale: "Ignored multiplication rule." },
+                        { text: `${f(9, 25)} (or 0.36)`, correct: false, rationale: "Calculated complement combination." }
+                    ],
+                    hint: "Multiply individual independent probabilities: P(A) × P(B)."
+                },
+                {
+                    level: "Medium", subcat: "Probability Computation - Mutually Exclusive",
+                    question: `Medium Q6: Zombies breach from mutually exclusive alleys: North (N) or East (E). If P(N) = ${f(1, 4)} and P(E) = ${f(9, 20)}, what is P(N ∪ E)?`,
+                    type: "calculation",
+                    options: [
+                        { text: `${f(7, 10)} (or 0.70)`, correct: true, rationale: `Mutually exclusive sum: ${f(5, 20)} + ${f(9, 20)} = ${f(14, 20)} = ${f(7, 10)}.` },
+                        { text: `${f(3, 10)} (or 0.30)`, correct: false, rationale: "Incorrect calculation." },
+                        { text: `${f(9, 80)} (or 0.1125)`, correct: false, rationale: "Multiplied as independent." },
+                        { text: `1 (or ${f(20, 20)})`, correct: false, rationale: "Ignored other alleys." }
+                    ],
+                    hint: "For mutually exclusive events, union is the sum of probabilities."
+                },
+                {
+                    level: "Medium", subcat: "Conditional Probability - Correct Formula",
+                    question: "Medium Q7: Which equation correctly defines conditional probability P(A | B) where P(B) > 0?",
+                    type: "theory",
+                    options: [
+                        { text: `P(A | B) = ${f("P(A ∩ B)", "P(B)")}`, correct: true, rationale: "Definition of conditional probability." },
+                        { text: `P(A | B) = ${f("P(A)", "P(B)")}`, correct: false, rationale: "Missing intersection." },
+                        { text: `P(A | B) = P(A) × P(B)`, correct: false, rationale: "Multiplication rule for independent events." },
+                        { text: `P(A | B) = P(A ∩ B) × P(B)`, correct: false, rationale: "Multiplied instead of divided." }
+                    ],
+                    hint: "Restrict sample space to B in the denominator."
+                },
+                {
+                    level: "Medium", subcat: "Conditional Probability - Scenario Presentation",
+                    question: `Medium Q8: ${f(3, 10)} (30%) of zombie attacks occur at night (N), and ${f(3, 25)} (12%) occur at night AND involve Boss Juggernauts (S). How do you calculate P(S | N)?`,
+                    type: "scenario",
+                    options: [
+                        { text: `${f("0.12", "0.30")} = ${f(2, 5)} (40%)`, correct: true, rationale: `P(S ∩ N) / P(N) = ${f("0.12", "0.30")} = ${f(12, 30)} = ${f(2, 5)} (40%).` },
+                        { text: `${f("0.30", "0.12")} = ${f(5, 2)} (250%)`, correct: false, rationale: "Inverted fraction." },
+                        { text: `0.30 × 0.12 = ${f(9, 250)} (3.6%)`, correct: false, rationale: "Multiplied instead of divided." },
+                        { text: `0.30 - 0.12 = ${f(9, 50)} (18%)`, correct: false, rationale: "Subtracted instead of divided." }
+                    ],
+                    hint: "Divide joint probability by conditioning probability."
+                },
+
+                // DIFFICULT (14-15)
+                {
+                    level: "Difficult", subcat: "Advanced Probability - Bayes' Theorem",
+                    question: `Difficult Q1: A bio-scanner detects a Zombie Boss with probability ${f(19, 20)} (0.95), but gives a false alarm for a regular zombie with probability ${f(1, 20)} (0.05). If ${f(1, 10)} (10%) are Bosses (M) and ${f(9, 10)} (90%) regular (D), what is P(M | A)?`,
+                    type: "calculation",
+                    options: [
+                        { text: `${f(19, 27)} (approx 0.7037)`, correct: true, rationale: `Bayes' Theorem: ${f("(0.95 × 0.10)", "(0.95 × 0.10) + (0.05 × 0.90)")} = ${f("0.095", "0.140")} = ${f(95, 140)} = ${f(19, 27)}.` },
+                        { text: `${f(19, 20)} (or 0.95)`, correct: false, rationale: "Confused sensitivity with posterior." },
+                        { text: `${f(1, 10)} (or 0.10)`, correct: false, rationale: "Prior probability only." },
+                        { text: `${f(38, 55)} (approx 0.6909)`, correct: false, rationale: "Arithmetic error." }
+                    ],
+                    hint: "Apply Bayes' Theorem with prior and false alarm rates."
+                },
+                {
+                    level: "Difficult", subcat: "Complex Systems - Multi-Stage Probability",
+                    question: `Difficult Q2: The survivor bunker is guarded by 3 independent electric fences, each with a ${f(9, 10)} (90%) chance to fry a zombie. What is the probability that AT LEAST ONE fence stops a zombie?`,
+                    type: "calculation",
+                    options: [
+                        { text: `${f(999, 1000)} (or 0.999)`, correct: true, rationale: `Complement rule: 1 - (${f(1, 10)})³ = 1 - ${f(1, 1000)} = ${f(999, 1000)}.` },
+                        { text: `${f(9, 10)} (or 0.900)`, correct: false, rationale: "Single fence rate." },
+                        { text: `${f(27, 10)} (or 2.700)`, correct: false, rationale: "Exceeds 1." },
+                        { text: `${f(1, 1000)} (or 0.001)`, correct: false, rationale: "Probability that all fences fail." }
+                    ],
+                    hint: `Calculate probability that all 3 fences fail (${f(1, 10)}³), then subtract from 1.`
+                }
+            ];
+        }
+
+        function renderVisualAid(q) {
+            const container = document.getElementById('visual-aid-container');
+            container.innerHTML = '';
+            if (q.type === 'table') {
+                let html = `<div class="overflow-x-auto w-full"><table class="w-full text-[11px] text-center border-collapse"><thead><tr class="border-b border-stone-800 text-emerald-400">`;
+                q.data.headers.forEach(h => html += `<th class="py-1 px-1.5 font-semibold">${h}</th>`);
+                html += `</tr></thead><tbody>`;
+                q.data.rows.forEach((row, idx) => {
+                    const isTotal = idx === q.data.rows.length - 1;
+                    html += `<tr class="${isTotal ? 'border-t border-stone-800 font-bold text-stone-300' : 'text-stone-400'}">`;
+                    row.forEach(cell => html += `<td class="py-1 px-1.5 border-r border-stone-900 last:border-r-0">${cell}</td>`);
+                    html += `</tr>`;
+                });
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+            } else if (q.type === 'venn') {
+                container.innerHTML = `
+                    <div class="relative w-full h-28 flex items-center justify-center">
+                        <svg class="w-64 h-28" viewBox="0 0 300 140">
+                            <circle cx="110" cy="70" r="50" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" stroke-width="2"/>
+                            <circle cx="190" cy="70" r="50" fill="rgba(132, 204, 22, 0.25)" stroke="#84cc16" stroke-width="2"/>
+                            <text x="75" y="75" fill="#a7f3d0" font-size="12" font-weight="bold">${q.data.setA - q.data.inter}</text>
+                            <text x="145" y="75" fill="#facc15" font-size="12" font-weight="bold">${q.data.inter}</text>
+                            <text x="215" y="75" fill="#ecfccb" font-size="12" font-weight="bold">${q.data.setB - q.data.inter}</text>
+                            <text x="75" y="25" fill="#a7f3d0" font-size="10">${q.data.nameA}</text>
+                            <text x="185" y="25" fill="#ecfccb" font-size="10">${q.data.nameB}</text>
+                            <text x="250" y="130" fill="#78716c" font-size="9">U = ${q.data.total}</text>
+                        </svg>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<div class="text-emerald-400 font-mono text-xs py-4 text-center"><i class="fa-solid fa-satellite-dish animate-pulse mr-2"></i>TACTICAL OUTPOST SCENARIO</div>`;
+            }
+        }
+
+        function loadQuestion() {
+            if (randomizedQuestions.length === 0) generateRandomizedQuestions();
+            const q = randomizedQuestions[gameState.currentQuestionIdx];
+            gameState.selectedOption = null;
+            gameState.answered = false;
+            gameState.isPausedForFeedback = false;
+
+            document.getElementById('current-q-num').innerText = gameState.currentQuestionIdx + 1;
+            document.getElementById('quiz-progress-bar').style.width = `${((gameState.currentQuestionIdx + 1) / 15) * 100}%`;
+            
+            const badge = document.getElementById('q-category-badge');
+            badge.innerText = `${q.level}: ${q.subcat}`;
+            if (q.level === 'Easy') badge.className = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider";
+            else if (q.level === 'Medium') badge.className = "bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider";
+            else badge.className = "bg-red-500/20 text-red-300 border border-red-500/30 text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider";
+
+            document.getElementById('question-text').innerHTML = q.question;
+            renderVisualAid(q);
+
+            const optContainer = document.getElementById('options-container');
+            optContainer.innerHTML = '';
+
+            let shuffled = [...q.options].map((opt, idx) => ({ ...opt, origIdx: idx }));
+            shuffled.sort(() => Math.random() - 0.5);
+
+            shuffled.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-3 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-200 text-xs sm:text-sm font-medium transition flex items-center justify-between group";
+                btn.innerHTML = `
+                    <div class="flex items-center space-x-2.5">
+                        <span class="w-5 h-5 rounded-md bg-stone-800 group-hover:bg-emerald-600/30 text-stone-400 group-hover:text-emerald-400 flex items-center justify-center text-[10px] font-bold">${String.fromCharCode(65 + idx)}</span>
+                        <span>${opt.text}</span>
+                    </div>
+                    <i class="fa-regular fa-circle text-stone-600 group-hover:text-emerald-400"></i>
+                `;
+                btn.onclick = () => selectOption(opt.correct, btn);
+                btn.dataset.correct = opt.correct;
+                optContainer.appendChild(btn);
+            });
+
+            document.getElementById('feedback-box').classList.add('hidden');
+            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('submit-btn').innerHTML = `<span>Open Fire!</span> <i class="fa-solid fa-gun"></i>`;
+        }
+
+        function selectOption(isCorrect, btnElement) {
+            if (gameState.answered) return;
+            document.querySelectorAll('#options-container button').forEach(b => {
+                b.className = "w-full text-left p-3 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-200 text-xs sm:text-sm font-medium transition flex items-center justify-between group";
+                b.querySelector('i').className = "fa-regular fa-circle text-stone-600 group-hover:text-emerald-400";
+            });
+            btnElement.className = "w-full text-left p-3 rounded-xl bg-emerald-600/20 border border-emerald-500 text-white text-xs sm:text-sm font-medium transition flex items-center justify-between shadow-md";
+            btnElement.querySelector('i').className = "fa-solid fa-circle-check text-emerald-400";
+
+            gameState.selectedOption = isCorrect;
+            document.getElementById('submit-btn').disabled = false;
+        }
+
+        function submitAnswer() {
+            if (gameState.selectedOption === null || gameState.answered) return;
+            gameState.answered = true;
+            gameState.isPausedForFeedback = true; // Freeze zombies and timer
+
+            const q = randomizedQuestions[gameState.currentQuestionIdx];
+            const feedbackBox = document.getElementById('feedback-box');
+            feedbackBox.classList.remove('hidden');
+
+            document.querySelectorAll('#options-container button').forEach(b => {
+                b.classList.add('opacity-75', 'cursor-not-allowed');
+                if (b.dataset.correct === 'true') {
+                    b.className = "w-full text-left p-3 rounded-xl bg-emerald-600/20 border border-emerald-500 text-emerald-200 text-xs sm:text-sm font-medium flex items-center justify-between";
+                    b.querySelector('i').className = "fa-solid fa-check text-emerald-400";
+                }
+            });
+
+            const correctOpt = q.options.find(o => o.correct);
+
+            if (gameState.selectedOption) {
+                playSound('correct');
+                gameState.score += 100;
+                gameState.gold += 40;
+                gameState.soldiers += 1;
+                gameState.timeRemaining += 15.0;
+                if (gameState.timeRemaining > gameState.maxApproachTime) {
+                    gameState.maxApproachTime = gameState.timeRemaining;
+                }
+                renderSoldiersOnTower();
+                feedbackBox.className = "p-2.5 rounded-xl text-xs font-medium mb-2 bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 leading-relaxed";
+                feedbackBox.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i><strong>Hit! (+1 Soldier &amp; +15s Timer!)</strong> ${correctOpt.rationale}`;
+                document.getElementById('status-text').innerText = `Zombies paused. (${gameState.soldiers} Soldiers, +15s added)`;
+                triggerAnimation(true);
+            } else {
+                playSound('wrong');
+                gameState.hp = Math.max(0, gameState.hp - 15);
+                feedbackBox.className = "p-2.5 rounded-xl text-xs font-medium mb-2 bg-red-950/80 border border-red-500/50 text-red-200 leading-relaxed";
+                feedbackBox.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-400 mr-1"></i><strong>Missed!</strong> Zombies took a chunk (-15 HP). ${correctOpt.rationale}`;
+                document.getElementById('status-text').innerText = "Zombies paused. Read explanation before next wave!";
+                triggerAnimation(false);
+            }
+
+            updateStats();
+
+            if (gameState.hp <= 0) {
+                setTimeout(() => endGame(false), 1200);
+                return;
+            }
+
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = false;
+            if (gameState.currentQuestionIdx < randomizedQuestions.length - 1) {
+                submitBtn.innerHTML = `<span>Next Wave</span> <i class="fa-solid fa-forward"></i>`;
+                submitBtn.onclick = nextQuestion;
+            } else {
+                submitBtn.innerHTML = `<span>Complete Survival</span> <i class="fa-solid fa-trophy"></i>`;
+                submitBtn.onclick = () => endGame(true);
+            }
+        }
+
+        function nextQuestion() {
+            gameState.currentQuestionIdx++;
+            gameState.wave = gameState.currentQuestionIdx + 1;
+            gameState.isPausedForFeedback = false; // Resume zombies and timer
+            updateStats();
+            loadQuestion();
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.innerHTML = `<span>Open Fire!</span> <i class="fa-solid fa-gun"></i>`;
+            submitBtn.onclick = submitAnswer;
+            submitBtn.disabled = true;
+        }
+
+        function triggerAnimation(isSuccess) {
+            const leadPos = getPositionOnPath(1 - (gameState.timeRemaining / gameState.maxApproachTime));
+            if (isSuccess) {
+                for (let i = 0; i < gameState.soldiers; i++) {
+                    activeBullets.push({
+                        x1: 540 + (Math.random() - 0.5) * 24,
+                        y1: 168,
+                        x2: leadPos.x + (Math.random() - 0.5) * 20,
+                        y2: leadPos.y + (Math.random() - 0.5) * 20,
+                        life: 0.35
+                    });
+                }
+            }
+        }
+
+        function upgradeItem(type) {
+            if (type === 'damage' && gameState.gold >= 50) {
+                gameState.gold -= 50; gameState.towerDmg += 15;
+                document.getElementById('shop-damage').innerText = `${gameState.towerDmg} DMG`;
+            } else if (type === 'speed' && gameState.gold >= 60) {
+                gameState.gold -= 60; gameState.towerSpeed = Math.max(0.4, gameState.towerSpeed - 0.15);
+                document.getElementById('shop-speed').innerText = `${gameState.towerSpeed.toFixed(2)}s`;
+            } else if (type === 'range' && gameState.gold >= 40) {
+                gameState.gold -= 40; gameState.towerRange += 20;
+                document.getElementById('shop-range').innerText = `${gameState.towerRange}m`;
+            } else {
+                return;
+            }
+            playSound('correct');
+            updateStats();
+        }
+
+        function useHint() {
+            if (gameState.gold < 20) return;
+            gameState.gold -= 20;
+            updateStats();
+            const q = randomizedQuestions[gameState.currentQuestionIdx];
+            const fb = document.getElementById('feedback-box');
+            fb.classList.remove('hidden');
+            fb.className = "p-2.5 rounded-xl text-xs font-medium mb-2 bg-amber-950/80 border border-amber-500/50 text-amber-200 leading-relaxed";
+            fb.innerHTML = `<i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i><strong>Intel Hint:</strong> ${q.hint}`;
+        }
+
+        function updateStats() {
+            document.getElementById('stat-hp').innerText = gameState.hp;
+            document.getElementById('stat-gold').innerText = gameState.gold;
+            document.getElementById('stat-wave').innerText = `${gameState.wave} / 15`;
+            document.getElementById('mob-hp').innerText = gameState.hp;
+            document.getElementById('mob-gold').innerText = gameState.gold;
+            document.getElementById('mob-wave').innerText = `${gameState.wave}/15`;
+        }
+
+        function endGame(isVictory, customReason) {
+            gameState.isGameOver = true;
+            const modal = document.getElementById('game-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const maxPossibleScore = randomizedQuestions.length * 100;
+            const percentage = Math.round((gameState.score / maxPossibleScore) * 100);
+
+            document.getElementById('modal-icon').innerHTML = isVictory ? `<i class="fa-solid fa-medal text-amber-400"></i>` : `<i class="fa-solid fa-skull-crossbones text-red-500"></i>`;
+            document.getElementById('modal-title').innerText = isVictory ? "Tower Defended!" : "Tower Overrun!";
+            document.getElementById('modal-desc').innerText = customReason || (isVictory ? "Your squad of soldiers survived and eliminated all 15 zombie waves!" : "The zombie horde reached the tower!");
+            document.getElementById('modal-stats').innerHTML = `
+                <div>Total Score: <span class="font-bold text-amber-300">${gameState.score} / ${maxPossibleScore} (${percentage}%)</span></div>
+                <div>Soldiers Recruited: <span class="font-bold text-emerald-400">${gameState.soldiers}</span></div>
+                <div>Time Remaining: <span class="font-bold text-amber-300">${gameState.timeRemaining.toFixed(1)}s</span></div>
+                <div>Horde Waves Cleared: <span class="font-bold text-white">${gameState.wave} / 15</span></div>
+            `;
+        }
+
+        function restartGame() {
+            gameState = {
+                hp: 100, gold: 150, wave: 1, towerDmg: 25, towerSpeed: 1.0, towerRange: 120,
+                currentQuestionIdx: 0, selectedOption: null, answered: false, score: 0,
+                soldiers: 2, timeRemaining: 120.0, maxApproachTime: 120.0, isGameOver: false, isPausedForFeedback: false
+            };
+            activeBullets = [];
+            generateRandomizedQuestions();
+            document.getElementById('shop-damage').innerText = `25 DMG`;
+            document.getElementById('shop-speed').innerText = `1.0s`;
+            document.getElementById('shop-range').innerText = `120m`;
+            document.getElementById('game-modal').classList.add('hidden');
+            document.getElementById('game-modal').classList.remove('flex');
+            renderSoldiersOnTower();
+            updateStats();
+            loadQuestion();
+        }
+
+        window.onload = () => {
+            generateRandomizedQuestions();
+            renderSoldiersOnTower();
+            updateStats();
+            loadQuestion();
+            startDefenseLoop();
+        };
+    </script>
+</body>
+</html>
